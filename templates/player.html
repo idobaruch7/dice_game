@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🎲 Dice Game - Player</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .container {
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 100%;
+        }
+        input {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 10px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        button {
+            width: 100%;
+            padding: 20px;
+            font-size: 1.5em;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px 0;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .join-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        .join-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        .roll-btn {
+            background: #ff6b6b;
+            color: white;
+            font-size: 2em;
+            padding: 30px;
+            animation: pulse 2s infinite;
+        }
+        .roll-btn:hover:not(:disabled) {
+            background: #ff5252;
+            transform: scale(1.05);
+        }
+        .roll-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            animation: none;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        .info {
+            margin: 20px 0;
+            font-size: 1.2em;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+        }
+        .dice-result {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .dice {
+            width: 70px;
+            height: 70px;
+            background: white;
+            color: #667eea;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .score {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        #join-screen { display: block; }
+        #game-screen { display: none; }
+        .error {
+            background: #ff6b6b;
+            padding: 10px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎲 Dice Game</h1>
+
+    <div class="container" id="join-screen">
+        <h2>Join Game</h2>
+        <input type="text" id="player-name" placeholder="Enter your name" />
+        <button class="join-btn" onclick="joinGame()">Join Game</button>
+    </div>
+
+    <div class="container" id="game-screen">
+        <h2 id="player-display-name">Player</h2>
+        
+        <div class="info" id="status-info">Waiting for game to start...</div>
+        
+        <div id="error-msg" class="error" style="display: none;"></div>
+        
+        <div class="score">Score: <span id="player-score">0</span></div>
+        
+        <div class="dice-result" id="dice-result"></div>
+        
+        <button class="roll-btn" id="roll-btn" onclick="rollDice()" disabled>
+            🎲 ROLL DICE 🎲
+        </button>
+    </div>
+
+    <script>
+        const socket = io();
+        let myPlayerId = null;
+        let playerName = '';
+
+        function joinGame() {
+            playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) {
+                alert('Please enter your name!');
+                return;
+            }
+            
+            socket.emit('join_game', { name: playerName });
+            document.getElementById('join-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
+            document.getElementById('player-display-name').textContent = playerName;
+        }
+
+        function rollDice() {
+            socket.emit('roll_dice');
+        }
+
+        socket.on('connect', function() {
+            myPlayerId = socket.id;
+        });
+
+        socket.on('game_update', function(state) {
+            updatePlayerView(state);
+        });
+
+        socket.on('error', function(data) {
+            const errorMsg = document.getElementById('error-msg');
+            errorMsg.textContent = data.message;
+            errorMsg.style.display = 'block';
+            setTimeout(() => {
+                errorMsg.style.display = 'none';
+            }, 3000);
+        });
+
+        function updatePlayerView(state) {
+            const player = state.players[myPlayerId];
+            if (!player) return;
+
+            const rollBtn = document.getElementById('roll-btn');
+            const statusInfo = document.getElementById('status-info');
+            const scoreEl = document.getElementById('player-score');
+            const diceResult = document.getElementById('dice-result');
+
+            scoreEl.textContent = player.score;
+
+            // Update dice display
+            if (player.current_roll) {
+                diceResult.innerHTML = `
+                    <div class="dice">${player.current_roll[0]}</div>
+                    <div class="dice">${player.current_roll[1]}</div>
+                `;
+            } else {
+                diceResult.innerHTML = '';
+            }
+
+            // Update status and button
+            if (!state.game_active) {
+                if (state.winner) {
+                    statusInfo.textContent = `Game Over! Winner: ${state.winner}`;
+                    rollBtn.disabled = true;
+                    rollBtn.textContent = '🏆 GAME OVER 🏆';
+                } else {
+                    statusInfo.textContent = 'Waiting for game to start...';
+                    rollBtn.disabled = true;
+                    rollBtn.textContent = '🎲 WAITING 🎲';
+                }
+            } else if (player.has_rolled) {
+                statusInfo.textContent = `Round ${state.round}: Waiting for other players...`;
+                rollBtn.disabled = true;
+                rollBtn.textContent = '✅ ROLLED ✅';
+            } else {
+                statusInfo.textContent = `Round ${state.round}: Your turn!`;
+                rollBtn.disabled = false;
+                rollBtn.textContent = '🎲 ROLL DICE 🎲';
+            }
+        }
+
+        // Auto-focus name input
+        document.getElementById('player-name').focus();
+        
+        // Allow Enter key to join
+        document.getElementById('player-name').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') joinGame();
+        });
+    </script>
+</body>
+</html>

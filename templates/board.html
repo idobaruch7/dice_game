@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🎲 Dice Game - Main Board</title>
+    <meta charset="utf-8">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 3em;
+            margin: 20px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .game-info {
+            background: rgba(255,255,255,0.2);
+            padding: 20px 40px;
+            border-radius: 15px;
+            margin: 20px 0;
+            font-size: 1.5em;
+            backdrop-filter: blur(10px);
+        }
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            margin: 20px 0;
+        }
+        .player-card {
+            background: white;
+            color: #333;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: transform 0.3s;
+        }
+        .player-card:hover {
+            transform: translateY(-5px);
+        }
+        .player-card.rolled {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+        }
+        .player-name {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        .dice-container {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .dice {
+            width: 80px;
+            height: 80px;
+            background: #667eea;
+            color: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5em;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .score {
+            font-size: 2em;
+            font-weight: bold;
+            text-align: center;
+            color: #764ba2;
+        }
+        .waiting {
+            text-align: center;
+            color: #999;
+            font-style: italic;
+            margin: 20px 0;
+        }
+        .winner-banner {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 30px 0;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .start-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            font-size: 1.5em;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        .start-button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        .start-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .waiting-message {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎲 Dice Game</h1>
+    
+    <div class="game-info">
+        <div id="round-info">Waiting for players...</div>
+    </div>
+
+    <div id="waiting-area">
+        <div class="waiting-message">
+            Waiting for players to join...<br>
+            <small>Players should connect via phones to /player</small>
+        </div>
+        <button class="start-button" id="start-btn" disabled>Start Game (Need 1+ players)</button>
+    </div>
+
+    <div id="winner-area"></div>
+
+    <div class="players-grid" id="players-container"></div>
+
+    <script>
+        const socket = io();
+        
+        socket.on('game_update', function(state) {
+            updateBoard(state);
+        });
+
+        function updateBoard(state) {
+            const playerCount = Object.keys(state.players).length;
+            const startBtn = document.getElementById('start-btn');
+            
+            // Update round info
+            if (state.game_active) {
+                document.getElementById('round-info').innerHTML = 
+                    `Round ${state.round} of ${state.max_rounds}`;
+                document.getElementById('waiting-area').style.display = 'none';
+            } else if (state.winner) {
+                document.getElementById('round-info').innerHTML = 'Game Over!';
+                document.getElementById('waiting-area').style.display = 'none';
+            } else {
+                document.getElementById('round-info').innerHTML = 
+                    `${playerCount} player(s) connected`;
+                document.getElementById('waiting-area').style.display = 'block';
+                startBtn.disabled = playerCount < 1;
+                startBtn.textContent = playerCount < 1 ? 
+                    'Start Game (Need 2+ players)' : 'Start Game';
+            }
+
+            // Show winner
+            const winnerArea = document.getElementById('winner-area');
+            if (state.winner) {
+                winnerArea.innerHTML = `
+                    <div class="winner-banner">
+                        🏆 ${state.winner} WINS! 🏆
+                    </div>
+                    <button class="start-button" onclick="location.reload()">
+                        Play Again
+                    </button>
+                `;
+            } else {
+                winnerArea.innerHTML = '';
+            }
+
+            // Update players
+            const container = document.getElementById('players-container');
+            container.innerHTML = '';
+            
+            Object.entries(state.players).forEach(([id, player]) => {
+                const card = document.createElement('div');
+                card.className = `player-card ${player.has_rolled ? 'rolled' : ''}`;
+                
+                let diceHTML = '<div class="waiting">Waiting to roll...</div>';
+                if (player.current_roll) {
+                    diceHTML = `
+                        <div class="dice-container">
+                            <div class="dice">${player.current_roll[0]}</div>
+                            <div class="dice">${player.current_roll[1]}</div>
+                        </div>
+                    `;
+                }
+                
+                const statusHTML = player.has_rolled ? 
+                    '✅ Rolled!' : (state.game_active ? '⏳ Rolling...' : '');
+                
+                card.innerHTML = `
+                    <div class="player-name">${player.name}</div>
+                    ${diceHTML}
+                    <div class="score">Total Score: ${player.score}</div>
+                    <div class="waiting">${statusHTML}</div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('start-btn').addEventListener('click', function() {
+            socket.emit('start_game');
+        });
+    </script>
+</body>
+</html>
