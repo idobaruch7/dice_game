@@ -56,12 +56,23 @@ git clone https://github.com/idobaruch7/dice_game.git
 cd dice_game
 ```
 
-2. **Install required Python packages:**
+2. **Create a virtual environment (recommended):**
 ```bash
-pip3 install flask flask-socketio
+python3 -m venv venv
 ```
 
-3. **Verify the folder structure:**
+3. **Activate the virtual environment:**
+```bash
+source venv/bin/activate
+```
+You should see `(venv)` at the beginning of your terminal prompt.
+
+4. **Install required Python packages:**
+```bash
+pip install flask flask-socketio
+```
+
+5. **Verify the folder structure:**
 ```bash
 ls -la
 ```
@@ -69,6 +80,7 @@ You should see:
 ```
 dice_game/
 ├── server.py
+├── venv/           (virtual environment folder)
 └── templates/
     ├── board.html
     └── player.html
